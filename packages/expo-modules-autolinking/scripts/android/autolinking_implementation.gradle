@@ -1,5 +1,8 @@
 import groovy.json.JsonSlurper
+import groovy.util.FileNameFinder
 import java.nio.file.Paths
+import java.nio.file.Files
+
 
 // Object representing a module.
 class ExpoModule {
@@ -58,6 +61,15 @@ class ExpoAutolinkingManager {
   ExpoModule[] getModules() {
     Object json = resolve()
     return json.modules.collect { new ExpoModule(it) }
+  }
+
+  boolean findEASModule(String moduleName, String moduleVersion) {
+    String mavenEAS = System.env.MAVEN_EAS
+    if (!mavenEAS || !(new File(mavenEAS).exists())) {
+      return false
+    }
+    def files = new FileNameFinder().getFileNames(mavenEAS, "**/${moduleName}/${moduleVersion}/*.aar")
+    return !files.isEmpty()
   }
 
   static void generatePackageList(Project project, Map options) {
@@ -149,13 +161,24 @@ if (rootProject instanceof ProjectDescriptor) {
   }
 } else {
   def addModule = { DependencyHandler handler, String projectName, Boolean useAAR ->
+    ExpoAutolinkingManager manager = gradle.ext.expoAutolinkingManager
     Project dependency = rootProject.project(":${projectName}")
 
-    if (useAAR) {
+    def addedAsAAR = false
+    if (dependency.findProperty('isAarProject')) {
+      handler.add('api', dependency)
+      addedAsAAR = true
+    } else if (manager.findEASModule(projectName, dependency.version)) {
       handler.add('api', "${dependency.group}:${projectName}:${dependency.version}")
+      addedAsAAR = true
+    } else if (useAAR) {
+      handler.add('api', "${dependency.group}:${projectName}:${dependency.version}")
+      addedAsAAR = true
     } else {
       handler.add('api', dependency)
     }
+
+    return addedAsAAR
   }
 
   def addDependencies = { DependencyHandler handler, Project project ->
@@ -175,14 +198,14 @@ if (rootProject instanceof ProjectDescriptor) {
         continue
       }
 
-      addModule(handler, module.projectName, manager.shouldUseAAR())
+      def aarTag = addModule(handler, module.projectName, manager.shouldUseAAR()) ? '#aar' : '';
 
       // Can remove this once we move all the interfaces into the core.
       if (module.name.endsWith('-interface')) {
         continue
       }
 
-      println "  - ${Colors.GREEN}${module.name}${Colors.RESET} (${module.version})"
+      println "  - ${Colors.GREEN}${module.name}${Colors.RESET} (${module.version}${aarTag})"
     }
 
     println ''

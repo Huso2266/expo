@@ -1,9 +1,9 @@
+group = 'host.exp.exponent'
+version = '13.0.0'
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'maven'
-
-group = 'host.exp.exponent'
-version = '13.0.0'
 
 apply from: "../scripts/get-app-config-android.gradle"
 

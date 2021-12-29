@@ -1,5 +1,62 @@
 import groovy.json.JsonSlurper
 
+group = 'host.exp.exponent'
+version = '0.10.0'
+
+configurations {
+  api
+  implementation.extendsFrom(api)
+  configurations.maybeCreate('default').extendsFrom(implementation)
+  testImplementation
+}
+
+dependencies {
+  implementation project(":expo-modules-core")
+  implementation project(":expo-dev-menu-interface")
+  implementation project(":expo-manifests")
+  implementation project(":expo-updates-interface")
+  implementation project(":expo-dev-menu")
+
+  //noinspection GradleDynamicVersion
+  implementation 'com.facebook.react:react-native:+'  // From node_modules
+
+  implementation 'commons-io:commons-io:2.6'
+
+  implementation 'com.squareup.okhttp3:okhttp:3.14.9'
+  implementation 'com.google.code.gson:gson:2.8.6'
+
+  // Fixes
+  // Cannot access 'androidx....' which is a supertype of 'expo.modules.devmenu.DevMenuActivity'.
+  // Check your module classpath for missing or conflicting dependencies
+  api "androidx.appcompat:appcompat:1.1.0"
+  api "androidx.lifecycle:lifecycle-extensions:2.2.0"
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3")
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.1")
+  implementation "org.jetbrains.kotlin:kotlin-reflect:${safeExtGet('kotlinVersion', '1.4.21')}"
+
+  api "io.insert-koin:koin-core:3.1.2"
+
+  testImplementation 'androidx.test:core:1.4.0'
+  testImplementation 'androidx.test:core-ktx:1.4.0'
+  testImplementation "com.google.truth:truth:1.1.2"
+  testImplementation 'com.squareup.okhttp3:mockwebserver:4.3.1'
+  testImplementation "io.insert-koin:koin-test:3.1.2"
+  testImplementation "io.insert-koin:koin-test-junit4:3.1.2"
+  testImplementation 'io.mockk:mockk:1.9.3'
+  testImplementation "org.robolectric:robolectric:4.3.1"
+}
+
+if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-dev-launcher/${version}/*.aar").getFiles()[0]
+  if (aarFile) {
+    ext.isAarProject = true
+    artifacts.add('default', aarFile)
+    return
+  }
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'maven'
@@ -16,6 +73,38 @@ buildscript {
 
   dependencies {
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${safeExtGet('kotlinVersion', '1.4.21')}")
+  }
+}
+
+//Upload android library to maven with javadoc and android sources
+configurations {
+  deployerJars
+}
+
+//Creating sources with comments
+task androidSourcesJar(type: Jar) {
+  classifier = 'sources'
+  from android.sourceSets.main.java.srcDirs
+}
+
+//Put the androidSources and javadoc to the artifacts
+artifacts {
+  archives androidSourcesJar
+}
+
+uploadArchives {
+  repositories {
+    if (System.env.MAVEN_EAS) {
+      maven {
+        name "mavenEAS"
+        url System.env.MAVEN_EAS
+      }
+    }
+
+    mavenDeployer {
+      configuration = configurations.deployerJars
+      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
+    }
   }
 }
 
@@ -91,44 +180,6 @@ repositories {
   jcenter()
 }
 
-dependencies {
-  implementation project(":expo-modules-core")
-  implementation project(":expo-dev-menu-interface")
-  implementation project(":expo-manifests")
-  implementation project(":expo-updates-interface")
-  implementation project(":expo-dev-menu")
-
-  //noinspection GradleDynamicVersion
-  implementation 'com.facebook.react:react-native:+'  // From node_modules
-
-  implementation 'commons-io:commons-io:2.6'
-
-  implementation 'com.squareup.okhttp3:okhttp:3.14.9'
-  implementation 'com.google.code.gson:gson:2.8.6'
-
-  // Fixes
-  // Cannot access 'androidx....' which is a supertype of 'expo.modules.devmenu.DevMenuActivity'.
-  // Check your module classpath for missing or conflicting dependencies
-  api "androidx.appcompat:appcompat:1.1.0"
-  api "androidx.lifecycle:lifecycle-extensions:2.2.0"
-
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3")
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.1")
-  implementation "org.jetbrains.kotlin:kotlin-reflect:${safeExtGet('kotlinVersion', '1.4.21')}"
-
-  api "io.insert-koin:koin-core:3.1.2"
-
-  testImplementation 'androidx.test:core:1.4.0'
-  testImplementation 'androidx.test:core-ktx:1.4.0'
-  testImplementation "com.google.truth:truth:1.1.2"
-  testImplementation 'com.squareup.okhttp3:mockwebserver:4.3.1'
-  testImplementation "io.insert-koin:koin-test:3.1.2"
-  testImplementation "io.insert-koin:koin-test-junit4:3.1.2"
-  testImplementation 'io.mockk:mockk:1.9.3'
-  testImplementation "org.robolectric:robolectric:4.3.1"
-}
-
 // Koin uses a different version of Kotlin under the hood.
 configurations.all {
   resolutionStrategy.eachDependency { DependencyResolveDetails details ->
@@ -158,4 +209,11 @@ def getRNVersion() {
       minor,
       patch
   )
+}
+
+afterEvaluate {
+  if (System.env.GENERATE_AAR_ON_THE_FLY) {
+    bundleLibResDebug.finalizedBy(uploadArchives)
+    bundleLibResRelease.finalizedBy(uploadArchives)
+  }
 }

@@ -1,11 +1,38 @@
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
-apply plugin: 'maven'
+import groovy.json.JsonSlurper
 
 group = 'host.exp.exponent'
 version = '5.1.0'
 
-import groovy.json.JsonSlurper
+configurations {
+  api
+  implementation.extendsFrom(api)
+  configurations.maybeCreate('default').extendsFrom(implementation)
+  testImplementation
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  //noinspection GradleDynamicVersion
+  implementation 'com.facebook.react:react-native:+'
+  api 'io.branch.sdk.android:library:5.0.3'
+  implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.0.0"
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
+}
+
+if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-branch/${version}/*.aar").getFiles()[0]
+  if (aarFile) {
+    ext.isAarProject = true
+    configurations.maybeCreate('default')
+    artifacts.add('default', aarFile)
+    return
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'maven'
 
 def getNpmVersion() {
   def packageJsonFile = file('../package.json')
@@ -49,9 +76,16 @@ artifacts {
 
 uploadArchives {
   repositories {
+    if (System.env.MAVEN_EAS) {
+      maven {
+        name "mavenEAS"
+        url System.env.MAVEN_EAS
+      }
+    }
+
     mavenDeployer {
       configuration = configurations.deployerJars
-      repository(url: mavenLocal().url)
+      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
     }
   }
 }
@@ -77,12 +111,9 @@ android {
   }
 }
 
-dependencies {
-  implementation project(':expo-modules-core')
-  //noinspection GradleDynamicVersion
-  implementation 'com.facebook.react:react-native:+'
-  api 'io.branch.sdk.android:library:5.0.3'
-  implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.0.0"
-
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
+afterEvaluate {
+  if (System.env.GENERATE_AAR_ON_THE_FLY) {
+    bundleLibResDebug.finalizedBy(uploadArchives)
+    bundleLibResRelease.finalizedBy(uploadArchives)
+  }
 }

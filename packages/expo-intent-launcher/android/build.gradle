@@ -1,9 +1,34 @@
+group = 'host.exp.exponent'
+version = '10.1.0'
+
+configurations {
+  api
+  implementation.extendsFrom(api)
+  configurations.maybeCreate('default').extendsFrom(implementation)
+  testImplementation
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+
+  api "androidx.annotation:annotation:1.0.0"
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
+}
+
+if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-intent-launcher/${version}/*.aar").getFiles()[0]
+  if (aarFile) {
+    ext.isAarProject = true
+    configurations.maybeCreate('default')
+    artifacts.add('default', aarFile)
+    return
+  }
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 apply plugin: 'maven'
-
-group = 'host.exp.exponent'
-version = '10.1.0'
 
 buildscript {
   // Simple helper that allows the root project to override versions declared by this library.
@@ -38,9 +63,16 @@ artifacts {
 
 uploadArchives {
   repositories {
+    if (System.env.MAVEN_EAS) {
+      maven {
+        name "mavenEAS"
+        url System.env.MAVEN_EAS
+      }
+    }
+
     mavenDeployer {
       configuration = configurations.deployerJars
-      repository(url: mavenLocal().url)
+      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
     }
   }
 }
@@ -68,10 +100,9 @@ android {
   }
 }
 
-dependencies {
-  implementation project(':expo-modules-core')
-
-  api "androidx.annotation:annotation:1.0.0"
-
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
+afterEvaluate {
+  if (System.env.GENERATE_AAR_ON_THE_FLY) {
+    bundleLibResDebug.finalizedBy(uploadArchives)
+    bundleLibResRelease.finalizedBy(uploadArchives)
+  }
 }
