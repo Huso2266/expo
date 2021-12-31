@@ -72,13 +72,6 @@ allprojects {
             url "$rootDir/../node_modules/detox/Detox-android"
         }
 
-        if (System.env.MAVEN_EAS) {
-            maven {
-                name "mavenEAS"
-                url System.env.MAVEN_EAS
-            }
-        }
-
         google()
         mavenCentral()
         jcenter()

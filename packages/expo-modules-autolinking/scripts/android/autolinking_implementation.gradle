@@ -1,8 +1,6 @@
 import groovy.json.JsonSlurper
 import groovy.util.FileNameFinder
 import java.nio.file.Paths
-import java.nio.file.Files
-
 
 // Object representing a module.
 class ExpoModule {
@@ -61,15 +59,6 @@ class ExpoAutolinkingManager {
   ExpoModule[] getModules() {
     Object json = resolve()
     return json.modules.collect { new ExpoModule(it) }
-  }
-
-  boolean findEASModule(String moduleName, String moduleVersion) {
-    String mavenEAS = System.env.MAVEN_EAS
-    if (!mavenEAS || !(new File(mavenEAS).exists())) {
-      return false
-    }
-    def files = new FileNameFinder().getFileNames(mavenEAS, "**/${moduleName}/${moduleVersion}/*.aar")
-    return !files.isEmpty()
   }
 
   static void generatePackageList(Project project, Map options) {
@@ -167,9 +156,6 @@ if (rootProject instanceof ProjectDescriptor) {
     def addedAsAAR = false
     if (dependency.findProperty('isAarProject')) {
       handler.add('api', dependency)
-      addedAsAAR = true
-    } else if (manager.findEASModule(projectName, dependency.version)) {
-      handler.add('api', "${dependency.group}:${projectName}:${dependency.version}")
       addedAsAAR = true
     } else if (useAAR) {
       handler.add('api', "${dependency.group}:${projectName}:${dependency.version}")
