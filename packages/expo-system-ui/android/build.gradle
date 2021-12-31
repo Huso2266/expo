@@ -18,7 +18,7 @@ dependencies {
   implementation 'androidx.appcompat:appcompat:1.2.0'
 }
 
-if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+if (System.env.MAVEN_EAS) {
   def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-system-ui/${version}/*.aar").getFiles()[0]
   if (aarFile) {
     ext.isAarProject = true

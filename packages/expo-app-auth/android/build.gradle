@@ -17,7 +17,7 @@ dependencies {
   api 'de.greenrobot:eventbus:2.4.0'
 }
 
-if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+if (System.env.MAVEN_EAS) {
   def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-app-auth/${version}/*.aar").getFiles()[0]
   if (aarFile) {
     ext.isAarProject = true

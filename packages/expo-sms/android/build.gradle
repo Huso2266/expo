@@ -22,7 +22,7 @@ dependencies {
   testImplementation 'junit:junit:4.12'
 }
 
-if (System.env.MAVEN_EAS && !System.env.GENERATE_AAR_ON_THE_FLY) {
+if (System.env.MAVEN_EAS) {
   def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-sms/${version}/*.aar").getFiles()[0]
   if (aarFile) {
     ext.isAarProject = true
