@@ -129,6 +129,10 @@ afterEvaluate {
   }
 }
 
+task uploadExpoArchives {
+  dependsOn(uploadArchives)
+}
+
 /**
  * To make the users of annotations @OptIn and @RequiresOptIn aware of their experimental status,
  * the compiler raises warnings when compiling the code with these annotations:

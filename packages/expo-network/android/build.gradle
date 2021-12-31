@@ -100,3 +100,7 @@ afterEvaluate {
     bundleLibResRelease.finalizedBy(uploadArchives)
   }
 }
+
+task uploadExpoArchives {
+  dependsOn(uploadArchives)
+}
