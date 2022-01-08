@@ -2,7 +2,7 @@ import groovy.json.JsonSlurper
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-group = 'host.exp.exponent'
+def publishGroup = 'host.exp.exponent'
 version = '0.9.0'
 
 // reanimated v2
@@ -127,59 +127,29 @@ def reanimatedVersion = minorCopy
 
 // end of reanimated v2
 
-configurations {
-  api
-  implementation.extendsFrom(api)
-  configurations.maybeCreate('default').extendsFrom(implementation)
-  testImplementation
-}
-
-dependencies {
-  implementation project(':expo-modules-core')
-
-  implementation files("${reanimatedPath}/${minorCopy}-${engine}/classes.jar")
-
-  implementation project(":expo-dev-menu-interface")
-
-  implementation 'com.squareup.okhttp3:okhttp:3.14.9'
-  implementation 'com.google.code.gson:gson:2.8.6'
-
-  //noinspection GradleDynamicVersion
-  implementation 'com.facebook.react:react-native:+'
-  implementation "androidx.transition:transition:1.1.0" // use by react-native-reanimated
-
-  // Fixes
-  // Cannot access 'androidx....' which is a supertype of 'expo.modules.devmenu.DevMenuActivity'.
-  // Check your module classpath for missing or conflicting dependencies
-  api "androidx.appcompat:appcompat:1.1.0"
-  api "androidx.lifecycle:lifecycle-extensions:2.2.0"
-
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
-  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.7'
-  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.5'
-
-  api "androidx.browser:browser:1.2.0"
-
-  testImplementation "com.google.truth:truth:1.1.2"
-  testImplementation "org.robolectric:robolectric:4.3.1"
-  testImplementation 'com.squareup.okhttp3:mockwebserver:4.3.1'
-  testImplementation 'androidx.test:core:1.3.0'
-}
-
 if (System.env.MAVEN_EAS) {
-  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-dev-menu/${version}/*.aar").getFiles()[0]
-  if (aarFile) {
+  def url = new URL(System.env.MAVEN_EAS)
+  def foundAarFile = false
+  if (url.getProtocol() == 'file') {
+    def aarFile = fileTree(dir: url.getFile(), include: "**/${name}/${version}/*.aar").getFiles()[0]
+    foundAarFile = !!aarFile
+  } else {
+    url = new URL("${url.toString()}/${publishGroup.replace('.', '/')}/${name}/${version}/${name}-${version}.pom")
+    def conn = url.openConnection()
+    conn.setRequestMethod('HEAD')
+    conn.connect()
+    def status = conn.getResponseCode()
+    foundAarFile = status >= 200 && status < 300
+  }
+  if (foundAarFile) {
     ext.isAarProject = true
     configurations.maybeCreate('default')
-    artifacts.add('default', aarFile)
-    // Remove self containing jars to fix release build error: com.android.builder.dexing.DexArchiveMergerException: Error while merging dex archives
-    //  Type devmenu.com.swmansion.reanimated.AndroidErrorHandler is defined multiple times
-    configurations.implementation.dependencies.removeIf { it ->
-      it instanceof org.gradle.api.artifacts.FileCollectionDependency
-    }
+    dependencies.add('default', "${publishGroup}:${name}:${version}")
     return
   }
 }
+
+group = publishGroup
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
@@ -218,16 +188,17 @@ artifacts {
 
 uploadArchives {
   repositories {
-    if (System.env.MAVEN_EAS) {
-      maven {
-        name "mavenEAS"
-        url System.env.MAVEN_EAS
-      }
-    }
-
     mavenDeployer {
       configuration = configurations.deployerJars
-      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
+      if (System.env.MAVEN_PUBLISH_EAS) {
+        repository(url: System.env.MAVEN_PUBLISH_EAS) {
+          if (System.env.MAVEN_PUBLISH_EAS_USERNAME && System.env.MAVEN_PUBLISH_EAS_PASSWORD) {
+            authentication(userName: System.env.MAVEN_PUBLISH_EAS_USERNAME, password: System.env.MAVEN_PUBLISH_EAS_PASSWORD)
+          }
+        }
+      } else {
+        repository(url: mavenLocal().url)
+      }
     }
   }
 }
@@ -295,6 +266,38 @@ repositories {
     // Android JSC is installed from npm
     url "$rootDir/../node_modules/jsc-android/dist"
   }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+
+  implementation files("${reanimatedPath}/${minorCopy}-${engine}/classes.jar")
+
+  implementation project(":expo-dev-menu-interface")
+
+  implementation 'com.squareup.okhttp3:okhttp:3.14.9'
+  implementation 'com.google.code.gson:gson:2.8.6'
+
+  //noinspection GradleDynamicVersion
+  implementation 'com.facebook.react:react-native:+'
+  implementation "androidx.transition:transition:1.1.0" // use by react-native-reanimated
+
+  // Fixes
+  // Cannot access 'androidx....' which is a supertype of 'expo.modules.devmenu.DevMenuActivity'.
+  // Check your module classpath for missing or conflicting dependencies
+  api "androidx.appcompat:appcompat:1.1.0"
+  api "androidx.lifecycle:lifecycle-extensions:2.2.0"
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.7'
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.5'
+
+  api "androidx.browser:browser:1.2.0"
+
+  testImplementation "com.google.truth:truth:1.1.2"
+  testImplementation "org.robolectric:robolectric:4.3.1"
+  testImplementation 'com.squareup.okhttp3:mockwebserver:4.3.1'
+  testImplementation 'androidx.test:core:1.3.0'
 }
 
 afterEvaluate {

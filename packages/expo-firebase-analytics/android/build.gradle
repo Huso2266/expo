@@ -1,39 +1,29 @@
-group = 'host.exp.exponent'
+def publishGroup = 'host.exp.exponent'
 version = '6.0.0'
 
-configurations {
-  api
-  implementation.extendsFrom(api)
-  configurations.maybeCreate('default').extendsFrom(implementation)
-  testImplementation
-}
-
-dependencies {
-  implementation project(':expo-modules-core')
-  implementation project(':expo-firebase-core')
-
-  // We can't use BOM, cause it doesn't work with prebuilding and new autolinking.
-  // > Could not find com.google.firebase:firebase-core:.
-  // Required by:
-  // project :expo > host.exp.exponent:expo-firebase-analytics:X.X.X
-  // project :expo > host.exp.exponent:expo-firebase-core:X.X.X
-  // api platform("com.google.firebase:firebase-bom:24.1.0")
-  api 'com.google.firebase:firebase-core:17.2.1'
-  api 'com.google.firebase:firebase-common:19.0.0'
-  api 'com.google.firebase:firebase-analytics:17.2.1'
-
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
-}
-
 if (System.env.MAVEN_EAS) {
-  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-firebase-analytics/${version}/*.aar").getFiles()[0]
-  if (aarFile) {
+  def url = new URL(System.env.MAVEN_EAS)
+  def foundAarFile = false
+  if (url.getProtocol() == 'file') {
+    def aarFile = fileTree(dir: url.getFile(), include: "**/${name}/${version}/*.aar").getFiles()[0]
+    foundAarFile = !!aarFile
+  } else {
+    url = new URL("${url.toString()}/${publishGroup.replace('.', '/')}/${name}/${version}/${name}-${version}.pom")
+    def conn = url.openConnection()
+    conn.setRequestMethod('HEAD')
+    conn.connect()
+    def status = conn.getResponseCode()
+    foundAarFile = status >= 200 && status < 300
+  }
+  if (foundAarFile) {
     ext.isAarProject = true
     configurations.maybeCreate('default')
-    artifacts.add('default', aarFile)
+    dependencies.add('default', "${publishGroup}:${name}:${version}")
     return
   }
 }
+
+group = publishGroup
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
@@ -72,16 +62,17 @@ artifacts {
 
 uploadArchives {
   repositories {
-    if (System.env.MAVEN_EAS) {
-      maven {
-        name "mavenEAS"
-        url System.env.MAVEN_EAS
-      }
-    }
-
     mavenDeployer {
       configuration = configurations.deployerJars
-      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
+      if (System.env.MAVEN_PUBLISH_EAS) {
+        repository(url: System.env.MAVEN_PUBLISH_EAS) {
+          if (System.env.MAVEN_PUBLISH_EAS_USERNAME && System.env.MAVEN_PUBLISH_EAS_PASSWORD) {
+            authentication(userName: System.env.MAVEN_PUBLISH_EAS_USERNAME, password: System.env.MAVEN_PUBLISH_EAS_PASSWORD)
+          }
+        }
+      } else {
+        repository(url: mavenLocal().url)
+      }
     }
   }
 }
@@ -103,6 +94,23 @@ android {
   lintOptions {
     abortOnError false
   }
+}
+
+dependencies {
+  implementation project(':expo-modules-core')
+  implementation project(':expo-firebase-core')
+
+  // We can't use BOM, cause it doesn't work with prebuilding and new autolinking.
+  // > Could not find com.google.firebase:firebase-core:.
+  // Required by:
+  // project :expo > host.exp.exponent:expo-firebase-analytics:X.X.X
+  // project :expo > host.exp.exponent:expo-firebase-core:X.X.X
+  // api platform("com.google.firebase:firebase-bom:24.1.0")
+  api 'com.google.firebase:firebase-core:17.2.1'
+  api 'com.google.firebase:firebase-common:19.0.0'
+  api 'com.google.firebase:firebase-analytics:17.2.1'
+
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.6.10')}"
 }
 
 afterEvaluate {

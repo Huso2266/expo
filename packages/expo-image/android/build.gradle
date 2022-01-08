@@ -1,5 +1,4 @@
-group = 'host.exp.exponent'
-version = '0.2.0'
+def publishGroup = 'host.exp.exponent'
 
 def DEFAULT_COMPILE_SDK_VERSION = 28
 def DEFAULT_BUILD_TOOLS_VERSION = '28.0.3'
@@ -8,42 +7,31 @@ def DEFAULT_TARGET_SDK_VERSION = 28
 
 def DEFAULT_OKHTTP_VERSION = '3.14.9'
 
-configurations {
-  api
-  implementation.extendsFrom(api)
-  configurations.maybeCreate('default').extendsFrom(implementation)
-  testImplementation
-  kapt
-}
-
-dependencies {
-  def GLIDE_VERSION = "4.12.0"
-
-  //noinspection GradleDynamicVersion
-  implementation 'com.facebook.react:react-native:+'  // From node_modules
-
-  implementation "com.github.zjupure:webpdecoder:2.0.${GLIDE_VERSION}"
-  api "com.github.bumptech.glide:glide:${GLIDE_VERSION}"
-  kapt "com.github.bumptech.glide:compiler:${GLIDE_VERSION}"
-  api 'com.caverock:androidsvg-aar:1.4'
-
-  api 'com.github.bumptech.glide:okhttp3-integration:4.11.0'
-  api "com.squareup.okhttp3:okhttp:${safeExtGet("okHttpVersion", DEFAULT_OKHTTP_VERSION)}"
-
-  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.1'
-  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
-  implementation "jp.wasabeef:glide-transformations:4.3.0"
-}
+version = '0.2.0'
 
 if (System.env.MAVEN_EAS) {
-  def aarFile = fileTree(dir: System.env.MAVEN_EAS, include: "**/expo-image/${version}/*.aar").getFiles()[0]
-  if (aarFile) {
+  def url = new URL(System.env.MAVEN_EAS)
+  def foundAarFile = false
+  if (url.getProtocol() == 'file') {
+    def aarFile = fileTree(dir: url.getFile(), include: "**/${name}/${version}/*.aar").getFiles()[0]
+    foundAarFile = !!aarFile
+  } else {
+    url = new URL("${url.toString()}/${publishGroup.replace('.', '/')}/${name}/${version}/${name}-${version}.pom")
+    def conn = url.openConnection()
+    conn.setRequestMethod('HEAD')
+    conn.connect()
+    def status = conn.getResponseCode()
+    foundAarFile = status >= 200 && status < 300
+  }
+  if (foundAarFile) {
     ext.isAarProject = true
     configurations.maybeCreate('default')
-    artifacts.add('default', aarFile)
+    dependencies.add('default', "${publishGroup}:${name}:${version}")
     return
   }
 }
+
+group = publishGroup
 
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
@@ -90,16 +78,17 @@ artifacts {
 
 uploadArchives {
   repositories {
-    if (System.env.MAVEN_EAS) {
-      maven {
-        name "mavenEAS"
-        url System.env.MAVEN_EAS
-      }
-    }
-
     mavenDeployer {
       configuration = configurations.deployerJars
-      repository(url: repositories.find { it.name == "mavenEAS" }?.url ?: mavenLocal().url)
+      if (System.env.MAVEN_PUBLISH_EAS) {
+        repository(url: System.env.MAVEN_PUBLISH_EAS) {
+          if (System.env.MAVEN_PUBLISH_EAS_USERNAME && System.env.MAVEN_PUBLISH_EAS_PASSWORD) {
+            authentication(userName: System.env.MAVEN_PUBLISH_EAS_USERNAME, password: System.env.MAVEN_PUBLISH_EAS_PASSWORD)
+          }
+        }
+      } else {
+        repository(url: mavenLocal().url)
+      }
     }
   }
 }
@@ -147,6 +136,25 @@ repositories {
   }
   google()
   mavenCentral()
+}
+
+dependencies {
+  def GLIDE_VERSION = "4.12.0"
+
+  //noinspection GradleDynamicVersion
+  implementation 'com.facebook.react:react-native:+'  // From node_modules
+
+  implementation "com.github.zjupure:webpdecoder:2.0.${GLIDE_VERSION}"
+  api "com.github.bumptech.glide:glide:${GLIDE_VERSION}"
+  kapt "com.github.bumptech.glide:compiler:${GLIDE_VERSION}"
+  api 'com.caverock:androidsvg-aar:1.4'
+
+  api 'com.github.bumptech.glide:okhttp3-integration:4.11.0'
+  api "com.squareup.okhttp3:okhttp:${safeExtGet("okHttpVersion", DEFAULT_OKHTTP_VERSION)}"
+
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.1'
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${safeExtGet('kotlinVersion', '1.4.21')}"
+  implementation "jp.wasabeef:glide-transformations:4.3.0"
 }
 
 afterEvaluate {
