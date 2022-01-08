@@ -106,13 +106,6 @@ dependencies {
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.3"
 }
 
-afterEvaluate {
-  if (System.env.GENERATE_AAR_ON_THE_FLY) {
-    bundleLibResDebug.finalizedBy(uploadArchives)
-    bundleLibResRelease.finalizedBy(uploadArchives)
-  }
-}
-
 task uploadExpoArchives {
   dependsOn(uploadArchives)
 }

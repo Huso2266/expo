@@ -111,13 +111,6 @@ dependencies {
   testImplementation 'org.apache.geronimo.specs:geronimo-json_1.1_spec:1.4'
 }
 
-afterEvaluate {
-  if (System.env.GENERATE_AAR_ON_THE_FLY) {
-    bundleLibResDebug.finalizedBy(uploadArchives)
-    bundleLibResRelease.finalizedBy(uploadArchives)
-  }
-}
-
 task uploadExpoArchives {
   dependsOn(uploadArchives)
 }

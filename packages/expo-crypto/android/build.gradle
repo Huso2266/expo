@@ -108,13 +108,6 @@ dependencies {
   testImplementation "org.robolectric:robolectric:4.3.1"
 }
 
-afterEvaluate {
-  if (System.env.GENERATE_AAR_ON_THE_FLY) {
-    bundleLibResDebug.finalizedBy(uploadArchives)
-    bundleLibResRelease.finalizedBy(uploadArchives)
-  }
-}
-
 task uploadExpoArchives {
   dependsOn(uploadArchives)
 }
